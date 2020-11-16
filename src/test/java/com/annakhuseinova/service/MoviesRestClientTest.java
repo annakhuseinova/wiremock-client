@@ -10,6 +10,8 @@ import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.common.ConsoleNotifier;
 import com.github.tomakehurst.wiremock.core.Options;
 import com.github.tomakehurst.wiremock.extension.responsetemplating.ResponseTemplateTransformer;
+import com.github.tomakehurst.wiremock.matching.StringValuePattern;
+import org.apache.http.impl.conn.Wire;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +24,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import java.time.LocalDate;
 import java.util.List;
 
-import static com.annakhuseinova.constants.MoviesAppConstants.GET_ALL_MOVIES_V1;
+import static com.annakhuseinova.constants.MoviesAppConstants.*;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.Assert.assertEquals;
@@ -93,7 +95,41 @@ class MoviesRestClientTest {
     }
 
     @Test
+    void retrieveMovieById_notFound_wiremock() {
+        stubFor(get(urlPathMatching("/movieservice/v1/movie/[0-9]+")).willReturn(WireMock.aResponse()
+        .withStatus(HttpStatus.NOT_FOUND.value()).withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+        .withBodyFile("404-movieId.json")));
+
+        assertThrows(WebClientResponseException.class, ()-> {
+            moviesRestClient.retrieveMovieById(100);
+        });
+    }
+
+
+    @Test
     void retrieveMovieByName() {
+
+        stubFor(get(urlEqualTo(MOVIE_BY_NAME_QUERY_PARAM_V1))
+            .withQueryParam("movie_name", equalTo("whatever"))
+                .willReturn(WireMock.aResponse()
+                .withStatus(HttpStatus.OK.value())
+                .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .withBodyFile("avengers.json")));
+        String movieName = "Avengers";
+        List<Movie> movieList =  moviesRestClient.retrieveMoviesByName(movieName);
+        assertEquals(4, movieList.size());
+    }
+
+
+    @Test
+    void responseTemplatingQueryParam() {
+
+        stubFor(get(urlEqualTo(MOVIE_BY_NAME_QUERY_PARAM_V1))
+                .withQueryParam("movie_name", equalTo("whatever"))
+                .willReturn(WireMock.aResponse()
+                        .withStatus(HttpStatus.OK.value())
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .withBodyFile("avengers.json")));
         String movieName = "Avengers";
         List<Movie> movieList =  moviesRestClient.retrieveMoviesByName(movieName);
         assertEquals(4, movieList.size());
@@ -125,6 +161,8 @@ class MoviesRestClientTest {
 
     @Test
     void addNewMovie() {
+
+        stubFor(post(urlPathEqualTo(ADD_MOVIE_V2)))
         //given
         String batmanBeginsCrew = "Tom Hanks, Tim Allen";
         Movie toyStory = Movie.builder()
